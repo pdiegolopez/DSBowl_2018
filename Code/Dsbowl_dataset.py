@@ -23,8 +23,8 @@ class Dsbowl_dataset(object):
         self.ids = os.listdir(self.dir_database)
         
         # Datos
-        self.x = self.load_images(mode=0)
-        self.y = self.load_images(mode=1)   
+        self.x = self.load_images(phase='train', mode=0)
+        self.y = self.load_images(phase='train', mode=1)   
         
         # Entrenamiento
         self.x_train = []
@@ -35,13 +35,16 @@ class Dsbowl_dataset(object):
         # Dividir en conjuntos de entrenamiento y validacion
         self.split_train_val()
              
+        # Test set
+        self.x_test = self.load_images(phase='test', mode=0)
+        
         # Pool
         self.pool = Pool()
     
     """
     Funcion que carga las imagenes de un directorio, como una sola imagen.
     """
-    def load_images(self, mode):
+    def load_images(self, phase, mode):
         
         # Modo 0 cargo images; modo 1 cargo mascaras
         if mode == 0:
@@ -52,7 +55,7 @@ class Dsbowl_dataset(object):
         data = []      
         for idx in self.ids:
             
-            images = glob.glob(self.dir_database + '/' + idx + '/' + data_type + '/*.png')
+            images = glob.glob(self.dir_database + '/' + phase + '/' + idx + '/' + data_type + '/*.png')
             
             x = []
             try:            
