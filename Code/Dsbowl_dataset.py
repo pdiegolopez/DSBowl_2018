@@ -10,7 +10,7 @@ import cv2
 import os
 import glob
 import numpy as np
-from utils import get_square_img, transformations 
+from utils import get_square_img, transformations, load_images, load_label
 from multiprocessing import Pool
 
 
@@ -20,12 +20,22 @@ class Dsbowl_dataset(object):
     def __init__(self, dir_database):
         
         self.dir_database = dir_database
-        self.ids = os.listdir(self.dir_database)
-        
-        # Datos
-        self.x = self.load_images(phase='train', mode=0)
-        self.y = self.load_images(phase='train', mode=1)   
-        
+
+        # Pool
+        self.pool = Pool()
+    
+        # Training set
+        ids = os.listdir(self.dir_database + '/train')
+    
+        ids = [self.dir_database + '/train/' + idx for idx in ids]
+    
+        self.x = self.pool.map(load_images, ids)
+        self.x = np.array(self.x)
+    
+        self.y = []
+        self.load_labels()
+        self.y = np.array(self.y)
+    
         # Entrenamiento
         self.x_train = []
         self.y_train = []
@@ -33,56 +43,23 @@ class Dsbowl_dataset(object):
         self.y_valid = []
         
         # Dividir en conjuntos de entrenamiento y validacion
-        self.split_train_val()
-             
-        # Test set
-        self.x_test = self.load_images(phase='test', mode=0)
-        
-        # Pool
-        self.pool = Pool()
+        self.split_train_val()    
     
-    """
-    Funcion que carga las imagenes de un directorio, como una sola imagen.
-    """
-    def load_images(self, phase, mode):
+       
+    def load_labels(self):
+        ids = os.listdir(self.dir_database + '/train')
+        ids = [self.dir_database + '/train/' + idx for idx in ids]
         
-        # Modo 0 cargo images; modo 1 cargo mascaras
-        if mode == 0:
-            data_type = 'images'
-        else:
-            data_type = 'masks'
+        for idx in ids:
+            dir_images = glob.glob(idx + '/masks/*.png')
+            images = self.pool.map(load_label, dir_images)
+            label = np.zeros((160, 160), dtype=np.float32)
+            for im in images:
+                label = np.maximum(label, im)
+                
+            self.y.append(label)
+            
         
-        data = []      
-        for idx in self.ids:
-            
-            images = glob.glob(self.dir_database + '/' + phase + '/' + idx + '/' + data_type + '/*.png')
-            
-            x = []
-            try:            
-                for image in images:
-                    im = cv2.imread(image)
-                    x.append(get_square_img(im))
-            except:
-                continue
-            
-            if len(x) > 1:
-                x = np.array(x)
-                x = np.sum(x, axis=0).astype(np.uint8)
-            else:
-                x = np.array(x)
-                x = np.squeeze(x, axis=0)
-            
-            # Todas al mismo tamaño y blanco y negro.
-            x = cv2.resize(x, (160, 160), interpolation=cv2.INTER_AREA)
-            x = cv2.cvtColor(x, cv2.COLOR_RGB2GRAY)
-            
-            # Rango 0 a 1
-            x = x / 255
-            
-            data.append(x)
-            
-        return np.array(data)
-    
     """
     Funcion que coge un 20% aleatorio de las muestras para validación
     """
