@@ -6,11 +6,10 @@ Created on Thu Mar 22 16:25:35 2018
 @author: Pedro Diego López Maroto
 """
 
-import cv2
 import os
 import glob
 import numpy as np
-from utils import get_square_img, transformations, load_images, load_label
+from utils import transformations, load_images, load_label, generate_valid
 from multiprocessing import Pool
 
 
@@ -26,21 +25,39 @@ class Dsbowl_dataset(object):
     
         # Training set
         ids = os.listdir(self.dir_database + '/train')
-    
+        self.image_id = ids     
         ids = [self.dir_database + '/train/' + idx for idx in ids]
-    
+          
+        # Images
         self.x = self.pool.map(load_images, ids)
         self.x = np.array(self.x)
-    
+        
+        # Labels
         self.y = []
+        self.valids = []
+        
         self.load_labels()
+        self.load_valids()
+        
         self.y = np.array(self.y)
-    
+        self.valids = np.array(self.valids)
+        self.y = np.stack((self.y, self.valids), axis=3)
+        
+        # Test set
+        ids = os.listdir(self.dir_database + '/test')     
+        ids = [self.dir_database + '/test/' + idx for idx in ids] 
+        
+        # Images
+        self.test = self.pool.map(load_images, ids)
+        self.test = np.array(self.test)
+        
         # Entrenamiento
         self.x_train = []
         self.y_train = []
+        self.ids_train = []
         self.x_valid = []
         self.y_valid = []
+        self.ids_valid = []
         
         # Dividir en conjuntos de entrenamiento y validacion
         self.split_train_val()    
@@ -59,13 +76,18 @@ class Dsbowl_dataset(object):
                 
             self.y.append(label)
             
-        
+            
+    def load_valids(self):
+        self.valids = self.pool.map(generate_valid, self.y)
+    
+    
     """
     Funcion que coge un 20% aleatorio de las muestras para validación
     """
     def split_train_val(self):
         self.x_train = self.x
         self.y_train = self.y
+        self.ids_train = self.image_id
         self.shuffle()
         
         split_nb = int(0.2 * self.x_train.shape[0])
@@ -73,9 +95,11 @@ class Dsbowl_dataset(object):
         # El conjunto de entrenamiento ya barajado se divide.
         self.x_valid = self.x_train[-split_nb:,]
         self.y_valid = self.y_train[-split_nb:,]
+        self.ids_valid = self.image_id[-split_nb:]
         
         self.x_train = self.x_train[0:-split_nb,]
         self.y_train = self.y_train[0:-split_nb,]
+        self.ids_train = self.image_id[0:-split_nb]
         
     
     """
@@ -87,13 +111,17 @@ class Dsbowl_dataset(object):
         np.random.shuffle(index)
         self.x_train = self.x_train[index,]
         self.y_train = self.y_train[index,]
+        self.ids_train = np.array(self.ids_train)
+        self.ids_train = self.ids_train[index]
+        self.ids_train = list(self.ids_train)
                
+        
     """
     Generador de muestras para entrenar
     """
     def generator(self, phase, batch_size=32, shuffle=True, data_aug=True):
         
-        # Train or valid phase
+        # Train or test phase
         if phase == 'train':
             x_tot = self.x_train
             y_tot = self.y_train      
@@ -135,7 +163,7 @@ class Dsbowl_dataset(object):
                     out = list(zip(*out))
                     
                     # Vuelta a array
-                    x_batch = np.array(out[0])
-                    y_batch = np.array(out[1])
+                    x_batch = np.array(out[0], dtype=np.float32)
+                    y_batch = np.array(out[1], dtype=np.float32)
                 
                 yield x_batch, y_batch
