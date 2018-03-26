@@ -7,14 +7,14 @@ Created on Sun Mar 25 18:12:34 2018
 """
 
 import numpy as np
-from Dsbowl_dataset import Dsbowl_dataset
+from Dsbowl_Dataset import Dsbowl_Dataset
 from matplotlib import pyplot as plt
 
 class Dataset_Viewer(object):
     
     def __init__(self, dir_dataset):
         
-        self.dataset = Dsbowl_dataset(dir_dataset)
+        self.dataset = Dsbowl_Dataset(dir_dataset)
         
         
     def visualize_one_random_batch_train(self):
@@ -43,3 +43,5 @@ class Dataset_Viewer(object):
         for i in range(self.dataset.test.shape[0]):
             plt.imshow(self.dataset.test[i,])
             plt.waitforbuttonpress()
+            
+    

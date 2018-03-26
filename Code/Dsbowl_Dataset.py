@@ -9,12 +9,12 @@ Created on Thu Mar 22 16:25:35 2018
 import os
 import glob
 import numpy as np
-from utils import transformations, load_images, load_label, generate_valid
+from utils import transformations, load_images, load_label, generate_valid, get_test_shape
 from multiprocessing import Pool
 
 
 
-class Dsbowl_dataset(object):
+class Dsbowl_Dataset(object):
     
     def __init__(self, dir_database):
         
@@ -35,6 +35,7 @@ class Dsbowl_dataset(object):
             self.ids_train = list(np.load(self.dir_database + '/ids_train.npy'))
             self.ids_valid = list(np.load(self.dir_database + '/ids_valid.npy'))
             self.ids_test = list(np.load(self.dir_database + '/ids_test.npy'))
+            self.test_shape = np.load(self.dir_database + '/test_shape.npy')
         else:
             print('Doing preprocessing load')
             # Training set
@@ -64,6 +65,8 @@ class Dsbowl_dataset(object):
             
             # Images
             self.test = self.pool.map(load_images, ids)
+            self.test_shape = self.pool.map(get_test_shape, ids)
+            self.test_shape = np.array(self.test_shape)
             self.test = np.array(self.test)
             
             # Entrenamiento
@@ -142,7 +145,7 @@ class Dsbowl_dataset(object):
         np.save(self.dir_database + '/ids_train.npy', np.array(self.ids_train))
         np.save(self.dir_database + '/ids_valid.npy', np.array(self.ids_valid))
         np.save(self.dir_database + '/ids_test.npy', np.array(self.ids_test))
-        
+        np.save(self.dir_database + '/test_shape.npy', self.test_shape)
     """
     Generador de muestras para entrenar
     """
@@ -177,8 +180,8 @@ class Dsbowl_dataset(object):
                     x_batch = x_tot[i * batch_size : i * batch_size + batch_size,].copy()
                     y_batch = y_tot[i * batch_size : i * batch_size + batch_size,].copy()
                 else:
-                    x_batch = x_tot[-alone_samples,].copy()
-                    y_batch = y_tot[-alone_samples,].copy()
+                    x_batch = x_tot[-alone_samples:,].copy()
+                    y_batch = y_tot[-alone_samples:,].copy()
                     
                 if data_aug:    
                     # Las paso a lista para poder meterla en el pool.map

@@ -10,6 +10,7 @@ import cv2
 import glob
 import numpy as np
 from scipy.ndimage.filters import gaussian_filter
+from keras import backend as K
 
 """
 Padding en una imagen para convertirla en cuadrada.
@@ -127,7 +128,13 @@ def load_images(image_id):
     
     return im
     
-
+def get_test_shape(image_id):
+    filename = glob.glob(image_id + '/images/*.png')
+    im = cv2.imread(filename[0])
+    
+    return im.shape[0:2]
+    
+    
 """
 Carga una etiqueta aplicandole el preprocesado.
 """
@@ -162,17 +169,17 @@ def load_label(dir_label):
         
         min_value = np.min(candidate[mask>0])
         
-        if 0.01 <= min_value <= 0.15:
+        if 0.001 <= min_value <= 0.05:
             seguir = False
             new_label = candidate
-        elif min_value < 0.01:          
+        elif min_value < 0.001:          
             if factor > 1.1 and status < 1:
                 factor -= 0.1
                 status = -1
             else:
                 seguir = False
                 new_label = candidate
-        elif min_value > 0.15:
+        elif min_value > 0.05:
             factor += 0.1
             status = 1
             
@@ -206,3 +213,38 @@ def generate_valid(label):
                 num_neg += 1
     
     return valid
+
+def rpn_loss_cls(y_true, y_pred):
+    
+    epsilon = 1e-4
+    constante = 10
+    
+    y_valid = y_true[:, :, :, 1:]
+    y = y_true[:, :, :, 0:1]
+    
+    x = K.abs(y - y_pred)
+    
+    return constante * K.sum(y_valid * x) / K.sum(epsilon + y_valid)
+
+
+def square_to_original(pred, org_shape):
+    
+    h, w = org_shape
+    
+    if h > w:       
+        prediction = cv2.resize(pred, (h, h), cv2.INTER_CUBIC)
+        pad = (h - w) / 2
+        index_start = np.floor(pad).astype(int)
+        index_end = np.ceil(pad).astype(int)
+        prediction = prediction[:, index_start:index_end]
+    else:
+        prediction = cv2.resize(pred, (w, w), cv2.INTER_CUBIC)
+        pad = (w - h) / 2
+        index_start = np.floor(pad).astype(int)
+        index_end = np.ceil(pad).astype(int)    
+        prediction = prediction[index_start:index_end, :]
+        
+    return prediction
+    
+    
+    
