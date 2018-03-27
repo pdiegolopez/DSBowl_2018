@@ -9,9 +9,9 @@ Created on Thu Mar 22 16:25:35 2018
 import os
 import glob
 import numpy as np
-from utils import transformations, load_images, load_label, generate_valid, get_test_shape
+from utils import transformations, load_images, load_label, generate_valid
+from utils import get_test_shape, detect_overlapping
 from multiprocessing import Pool
-
 
 
 class Dsbowl_Dataset(object):
@@ -92,7 +92,9 @@ class Dsbowl_Dataset(object):
             images = self.pool.map(load_label, dir_images)
             label = np.zeros((160, 160), dtype=np.float32)
             for im in images:
+                overlap = detect_overlapping(label, im)
                 label = np.maximum(label, im)
+                label[overlap > 0] = 0
                 
             self.y.append(label)
             

@@ -8,6 +8,7 @@ Created on Sun Mar 25 18:12:34 2018
 
 import numpy as np
 from Dsbowl_Dataset import Dsbowl_Dataset
+from utils import square_to_original
 from matplotlib import pyplot as plt
 
 class Dataset_Viewer(object):
@@ -45,3 +46,26 @@ class Dataset_Viewer(object):
             plt.waitforbuttonpress()
             
     
+    def visualize_predictions(self, predict):
+        
+        for i in range(len(predict)):
+            test = square_to_original(self.dataset.test[i,], self.dataset.test_shape[i,])
+            plt.subplot(121)
+            plt.imshow(test)
+            plt.subplot(122)
+            plt.imshow(predict[i] / np.max(predict[i]))
+            plt.waitforbuttonpress()
+            
+    def compare_two_predictions(self, predict, predict2):
+        
+        for i in range(len(predict)):
+            test = square_to_original(self.dataset.test[i,], self.dataset.test_shape[i,])
+            plt.subplot(131)
+            plt.imshow(test)
+            plt.subplot(132)
+            plt.imshow(predict[i])
+            plt.subplot(133)
+            plt.imshow(predict2[i])
+            plt.waitforbuttonpress()
+            
+            

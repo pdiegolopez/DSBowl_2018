@@ -11,6 +11,7 @@ import glob
 import numpy as np
 from scipy.ndimage.filters import gaussian_filter
 from keras import backend as K
+from skimage.morphology import label
 
 """
 Padding en una imagen para convertirla en cuadrada.
@@ -169,17 +170,17 @@ def load_label(dir_label):
         
         min_value = np.min(candidate[mask>0])
         
-        if 0.001 <= min_value <= 0.05:
+        if 0.05 <= min_value <= 0.15:
             seguir = False
             new_label = candidate
-        elif min_value < 0.001:          
+        elif min_value < 0.05:          
             if factor > 1.1 and status < 1:
                 factor -= 0.1
                 status = -1
             else:
                 seguir = False
                 new_label = candidate
-        elif min_value > 0.05:
+        elif min_value > 0.15:
             factor += 0.1
             status = 1
             
@@ -205,7 +206,7 @@ def generate_valid(label):
     if num_pos >= shape[0] * shape[1] // 2:
         valid = np.ones(shape, dtype=bool)
     else:      
-        while num_neg != num_pos:
+        while num_neg != int(0.25 * num_pos):
             cx = np.random.randint(low=0, high=shape[1])
             cy = np.random.randint(low=0, high=shape[0])
             if valid[cy, cx] == 0:
@@ -226,6 +227,18 @@ def rpn_loss_cls(y_true, y_pred):
     
     return constante * K.sum(y_valid * x) / K.sum(epsilon + y_valid)
 
+def binary_crossentropy_valid(y_true, y_pred):
+    
+    epsilon = 1e-4
+    constante = 10
+    
+    y_valid = y_true[:, :, :, 1:]
+    y = y_true[:, :, :, 0:1]
+    
+    x = K.binary_crossentropy(y, y_pred)
+    
+    return constante * K.sum(y_valid * x) / K.sum(epsilon + y_valid)
+
 
 def square_to_original(pred, org_shape):
     
@@ -236,15 +249,80 @@ def square_to_original(pred, org_shape):
         pad = (h - w) / 2
         index_start = np.floor(pad).astype(int)
         index_end = np.ceil(pad).astype(int)
-        prediction = prediction[:, index_start:index_end]
+        prediction = prediction[:, index_start:-index_end]
     else:
         prediction = cv2.resize(pred, (w, w), cv2.INTER_CUBIC)
         pad = (w - h) / 2
-        index_start = np.floor(pad).astype(int)
-        index_end = np.ceil(pad).astype(int)    
-        prediction = prediction[index_start:index_end, :]
+        if pad > 0:
+            index_start = np.floor(pad).astype(int)
+            index_end = np.ceil(pad).astype(int)    
+            prediction = prediction[index_start:-index_end, :]
         
     return prediction
     
+
+def detect_overlapping(mask1, mask2):
     
+    mask = (mask1 > 0) + (mask2 > 0)
+    
+    out = mask == 2
+    
+    if np.sum(out) > 0:
+        print('Overlap detected')
+    
+    return out
+
+"""
+img -> imagen recien cargada
+pred -> Prediccion grossa de red neuronal
+mask -> Prediccion solo centro de red neuronal
+"""
+def do_watershed(img, pred, mask):
+    
+    mask = np.uint8(mask)
+    _, markers = cv2.connectedComponents(mask)
+    markers += 1
+    unknown = pred - mask
+    markers[unknown == 1] = 0
+    markers = cv2.watershed(img, markers)
+    
+    return markers
+
+
+def apply_watershed(pred, watershed):
+    
+    pred = np.uint8(pred)
+    ret, masks = cv2.connectedComponents(pred)
+    out = np.zeros(pred.shape)
+    for i in range(1, ret):
+        
+        sample = masks == i
+        if len(np.unique(watershed[sample == 1])) == 3:
+            out += masks == i
+        else:
+            out[sample == 1] += watershed[sample == 1] > 1
+
+    return out
+
+def post_processing(x):
+    
+    true = (x > 0.65).astype(np.float32)
+
+    return true
+
+
+def rle_encoding(x):
+    dots = np.where(x.T.flatten() == 1)[0]
+    run_lengths = []
+    prev = -2
+    for b in dots:
+        if (b>prev+1): run_lengths.extend((b + 1, 0))
+        run_lengths[-1] += 1
+        prev = b
+    return run_lengths
+
+def prob_to_rles(x, cutoff=0.5):
+    lab_img = label(x > cutoff)
+    for i in range(1, lab_img.max() + 1):
+        yield rle_encoding(lab_img == i)
     

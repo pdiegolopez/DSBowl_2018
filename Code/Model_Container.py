@@ -7,16 +7,19 @@ Created on Mon Mar 26 13:55:56 2018
 """
 
 import math
-from utils import rpn_loss_cls, square_to_original
+import cv2
+from utils import binary_crossentropy_valid, square_to_original, prob_to_rles, post_processing
+from utils import do_watershed, apply_watershed
 from keras.layers.convolutional import Conv2D, MaxPooling2D, Conv2DTranspose
 from keras.layers import concatenate
 from keras.callbacks import ModelCheckpoint
 from keras.models import Model, load_model
 from keras.layers import Input
-from keras import optimizers
 from keras import backend as K
+import pandas as pd
+import numpy as np
 from Dsbowl_Dataset import Dsbowl_Dataset
-
+from matplotlib import pyplot as plt
 
 class Model_Container(object):
     
@@ -24,7 +27,7 @@ class Model_Container(object):
         
         self.dataset = Dsbowl_Dataset(dir_database)
         self.model = None
-        
+        self.history = None
         
     def do_training(self, model, epochs, batch_size=32):
         
@@ -45,20 +48,38 @@ class Model_Container(object):
 
         checkpoint = ModelCheckpoint('../Models/weightsADAM.{epoch:02d}.hdf5')
 
-        history = self.model.fit_generator(gen_train,
+        self.history = self.model.fit_generator(gen_train,
                                            epochs=epochs,
                                            steps_per_epoch=train_steps,
                                            verbose=1,
                                            validation_data=gen_valid,
                                            validation_steps=valid_steps,
                                            callbacks=[checkpoint])
-        return history
+        
+        train_loss = self.history.history['loss']
+        valid_loss = self.history.history['val_loss']
+        
+        x = list(range(1, epochs + 1))
+        plt.plot(x, train_loss, label='train_loss')
+        plt.plot(x, valid_loss, label='val_loss')
+        plt.title('Average of the categorical crossentropy for each landmark')
+        plt.xlabel('Epoch')
+        plt.legend(loc='upper right')
+        plt.show()
+      
+        # Saving losses
+        np.save('../Models/train_loss.npy', train_loss)
+        np.save('../Models/valid_loss.npy', valid_loss)
+        
+        # Show best validation model
+        best_idx = np.argmin(valid_loss)
+        print('Best validation model: ' + str(best_idx + 1) + ' with score: ' + str(valid_loss[best_idx]))
 
 
     def predict_valid(self, model_name):
         
         model = load_model('../Models/' + model_name,
-                           custom_objects={'rpn_loss_cls' : rpn_loss_cls})
+                           custom_objects={'binary_crossentropy_valid' : binary_crossentropy_valid})
         gen_valid = self.dataset.generator('valid')
         valid_size = self.dataset.x_valid.shape[0]
         valid_steps = math.ceil(valid_size / 32)    
@@ -70,14 +91,55 @@ class Model_Container(object):
     def predict_test(self, model_name):
         
         model = load_model('../Models/' + model_name,
-                           custom_objects={'rpn_loss_cls' : rpn_loss_cls})
-        predict = model.predict(self.database.test)
+                           custom_objects={'binary_crossentropy_valid' : binary_crossentropy_valid})
+        predict = model.predict(self.dataset.test)
         predict = predict[:, : ,:, 0]
+        out = []
         for i in range(predict.shape[0]):           
-            predict[i,] = square_to_original(predict[i,], self.dataset.test_shape[i,])
+            pred = square_to_original(predict[i,], self.dataset.test_shape[i,])
+            out.append(post_processing(pred))
             
-        return predict
+        return out
         
+    def predict_with_mask(self, mask_model_name, marker_model_name):
+        
+        mask_model = load_model('../Models/' + mask_model_name,
+                           custom_objects={'binary_crossentropy_valid' : binary_crossentropy_valid})
+        predict = mask_model.predict(self.dataset.test)
+        predict = predict[:, : ,:, 0]
+        pred = [square_to_original(predict[i,], self.dataset.test_shape[i,]) > 0.5 for i in range(predict.shape[0])]
+        
+        marker_model = load_model('../Models/' + marker_model_name,
+                           custom_objects={'binary_crossentropy_valid' : binary_crossentropy_valid})
+        sure_fg = marker_model.predict(self.dataset.test)
+        sure_fg = sure_fg[:, : ,:, 0]
+        sure = [square_to_original(sure_fg[i,], self.dataset.test_shape[i,]) > 0.65 for i in range(sure_fg.shape[0])]
+        
+        out = []
+        for i in range(sure_fg.shape[0]):
+            dir_images = '../../Databases/Dsbowl_fix/test/' + self.dataset.ids_test[i]
+            dir_images += '/images/' + self.dataset.ids_test[i] + '.png'
+            img = cv2.imread(dir_images)
+            w = do_watershed(img, pred[i], sure[i])
+            out.append(apply_watershed(pred[i], w))
+            
+        return out
+
+    def generate_submission(self, predict):
+        
+        new_test_ids = []
+        rles = []
+        for n, id_ in enumerate(self.dataset.ids_test):
+            rle = list(prob_to_rles(predict[n]))
+            rles.extend(rle)
+            new_test_ids.extend([id_] * len(rle))
+        
+        # Create submission DataFrame
+        sub = pd.DataFrame()
+        sub['ImageId'] = new_test_ids
+        sub['EncodedPixels'] = pd.Series(rles).apply(lambda x: ' '.join(str(y) for y in x))
+        sub.to_csv('../sub-dsbowl2018-1.csv', index=False)        
+
 
     def rcn5_model(self):
         inp = Input(shape=(160,160,3))
@@ -147,7 +209,7 @@ class Model_Container(object):
             x_class = Conv2D(1, (1, 1), activation='sigmoid', kernel_initializer='uniform', name='rpn_out_class')(final)
 
         self.model = Model(inputs=inp, outputs=x_class)
-        opt = optimizers.Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0, clipnorm=1., clipvalue=0.5) 
-        self.model.compile(optimizer='sgd', loss=rpn_loss_cls)
+        #opt = optimizers.Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0, clipnorm=1., clipvalue=0.5) 
+        self.model.compile(optimizer='sgd', loss=binary_crossentropy_valid)
         
         
