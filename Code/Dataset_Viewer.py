@@ -30,7 +30,10 @@ class Dataset_Viewer(object):
 
         for i in range(x_batch.shape[0]):       
             plt.subplot(131)
-            plt.imshow(x_batch[i,])
+            try:
+                plt.imshow(x_batch[i,])
+            except:
+                plt.imshow(x_batch[i, :, :, 0])
             plt.title(ids[i])
             plt.subplot(132)
             plt.imshow(y_batch[i, :, :, 0])

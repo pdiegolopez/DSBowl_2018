@@ -9,7 +9,7 @@ Created on Mon Mar 26 13:55:56 2018
 import math
 import cv2
 from utils import binary_crossentropy_valid, square_to_original, prob_to_rles, post_processing
-from utils import do_watershed, apply_watershed
+from utils import do_watershed, apply_watershed, do_dilate
 from keras.layers.convolutional import Conv2D, MaxPooling2D, Conv2DTranspose
 from keras.layers import concatenate
 from keras.callbacks import ModelCheckpoint
@@ -92,7 +92,10 @@ class Model_Container(object):
         
         model = load_model('../Models/' + model_name,
                            custom_objects={'binary_crossentropy_valid' : binary_crossentropy_valid})
-        predict = model.predict(self.dataset.test)
+        test = self.dataset.test.copy()
+        if len(test.shape) == 3:
+            test = np.expand_dims(test, -1)
+        predict = model.predict(test)
         predict = predict[:, : ,:, 0]
         out = []
         for i in range(predict.shape[0]):           
@@ -117,20 +120,19 @@ class Model_Container(object):
         
         out = []
         for i in range(sure_fg.shape[0]):
-            dir_images = '../../Databases/Dsbowl_fix/test/' + self.dataset.ids_test[i]
-            dir_images += '/images/' + self.dataset.ids_test[i] + '.png'
-            img = cv2.imread(dir_images)
+            img = cv2.cvtColor(pred[i].astype(np.uint8), cv2.COLOR_GRAY2RGB)
             w = do_watershed(img, pred[i], sure[i])
-            out.append(apply_watershed(pred[i], w))
+            aux = apply_watershed(pred[i], w)
+            out.append(do_dilate(aux))
             
         return out
 
-    def generate_submission(self, predict):
+    def generate_submission(self, predict, do_labelling=False):
         
         new_test_ids = []
         rles = []
         for n, id_ in enumerate(self.dataset.ids_test):
-            rle = list(prob_to_rles(predict[n]))
+            rle = list(prob_to_rles(predict[n], do_labelling=do_labelling))
             rles.extend(rle)
             new_test_ids.extend([id_] * len(rle))
         
@@ -142,9 +144,9 @@ class Model_Container(object):
 
 
     def rcn5_model(self):
-        inp = Input(shape=(160,160,3))
+        inp = Input(shape=(160, 160, 3))
         
-        num_filters = 64
+        num_filters = 16
     
         #Creo rama 5
         with K.name_scope('Inicio_Rama5'):

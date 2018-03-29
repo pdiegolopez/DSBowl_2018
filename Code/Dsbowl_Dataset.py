@@ -10,13 +10,13 @@ import os
 import glob
 import numpy as np
 from utils import transformations, load_images, load_label, generate_valid
-from utils import get_test_shape, detect_overlapping
+from utils import get_test_shape
 from multiprocessing import Pool
 
 
 class Dsbowl_Dataset(object):
     
-    def __init__(self, dir_database):
+    def __init__(self, dir_database, gauss=True):
         
         self.dir_database = dir_database
         
@@ -82,19 +82,21 @@ class Dsbowl_Dataset(object):
     
             # Guardar para carga mas rápida
             self.save_data()
+            
        
-    def load_labels(self):
+    def load_labels(self, gauss=True):
         ids = os.listdir(self.dir_database + '/train')
         ids = [self.dir_database + '/train/' + idx for idx in ids]
         
         for idx in ids:
             dir_images = glob.glob(idx + '/masks/*.png')
+
             images = self.pool.map(load_label, dir_images)
+
             label = np.zeros((160, 160), dtype=np.float32)
+            
             for im in images:
-                overlap = detect_overlapping(label, im)
                 label = np.maximum(label, im)
-                label[overlap > 0] = 0
                 
             self.y.append(label)
             
@@ -148,6 +150,8 @@ class Dsbowl_Dataset(object):
         np.save(self.dir_database + '/ids_valid.npy', np.array(self.ids_valid))
         np.save(self.dir_database + '/ids_test.npy', np.array(self.ids_test))
         np.save(self.dir_database + '/test_shape.npy', self.test_shape)
+        
+        
     """
     Generador de muestras para entrenar
     """
@@ -197,5 +201,5 @@ class Dsbowl_Dataset(object):
                     # Vuelta a array
                     x_batch = np.array(out[0], dtype=np.float32)
                     y_batch = np.array(out[1], dtype=np.float32)
-                
+                    
                 yield x_batch, y_batch

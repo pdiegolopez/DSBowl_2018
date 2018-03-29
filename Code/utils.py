@@ -70,15 +70,15 @@ def transformations(tupla):
         if dir_x == 0:
             aux_x = np.zeros(x.shape)
             aux_y = np.zeros(y.shape)
-            aux_x[:, 0:-q_x, :] = x[:, q_x:, :]
-            aux_y[:, 0:-q_x, :] = y[:, q_x:, :]
+            aux_x[:, 0:-q_x] = x[:, q_x:]
+            aux_y[:, 0:-q_x] = y[:, q_x:]
             x = aux_x
             y = aux_y
         else:
             aux_x = np.zeros(x.shape)
             aux_y = np.zeros(y.shape)
-            aux_x[:, q_x:, :] = x[:, 0:-q_x, :]
-            aux_y[:, q_x:, :] = y[:, 0:-q_x, :]
+            aux_x[:, q_x:] = x[:, 0:-q_x]
+            aux_y[:, q_x:] = y[:, 0:-q_x]
             x = aux_x
             y = aux_y
     
@@ -87,15 +87,15 @@ def transformations(tupla):
         if dir_y == 0:
             aux_x = np.zeros(x.shape)
             aux_y = np.zeros(y.shape)
-            aux_x[0:-q_y, :, :] = x[q_y:, :, :]
-            aux_y[0:-q_y, :, :] = y[q_y:, :, :]
+            aux_x[0:-q_y, :] = x[q_y:, :]
+            aux_y[0:-q_y, :] = y[q_y:, :]
             x = aux_x
             y = aux_y
         else:
             aux_x = np.zeros(x.shape)
             aux_y = np.zeros(y.shape)
-            aux_x[q_y:, :, :] = x[0:-q_y, :, :]
-            aux_y[q_y:, :, :] = y[0:-q_y, :, :]
+            aux_x[q_y:, :] = x[0:-q_y, :]
+            aux_y[q_y:, :] = y[0:-q_y, :]
             x = aux_x   
             y = aux_y
     
@@ -110,7 +110,6 @@ def transformations(tupla):
     
     return (x, y)
 
-
 """
 Carga una imagen dada la ruta a su carpeta id.
 """
@@ -119,7 +118,7 @@ def load_images(image_id):
     filename = glob.glob(image_id + '/images/*.png')
     im = cv2.imread(filename[0])
     im = get_square_img(im)
-    
+
     im = cv2.resize(im, (160, 160), interpolation=cv2.INTER_AREA)
     
     if len(im.shape) < 3:
@@ -135,7 +134,7 @@ def get_test_shape(image_id):
     
     return im.shape[0:2]
     
-    
+
 """
 Carga una etiqueta aplicandole el preprocesado.
 """
@@ -170,24 +169,24 @@ def load_label(dir_label):
         
         min_value = np.min(candidate[mask>0])
         
-        if 0.05 <= min_value <= 0.15:
+        if 0.5 <= min_value <= 0.75:
             seguir = False
             new_label = candidate
-        elif min_value < 0.05:          
+        elif min_value < 0.75:          
             if factor > 1.1 and status < 1:
                 factor -= 0.1
                 status = -1
             else:
                 seguir = False
                 new_label = candidate
-        elif min_value > 0.15:
+        elif min_value > 0.85:
             factor += 0.1
             status = 1
             
     new_label *= 255
     new_label = get_square_img(new_label)
     
-    new_label = cv2.resize(new_label, (160, 160), interpolation=cv2.INTER_AREA)
+    new_label = cv2.resize(new_label, (256, 256), interpolation=cv2.INTER_AREA)
     new_label = new_label / 255
     
     return new_label
@@ -294,21 +293,42 @@ def apply_watershed(pred, watershed):
     pred = np.uint8(pred)
     ret, masks = cv2.connectedComponents(pred)
     out = np.zeros(pred.shape)
-    for i in range(1, ret):
-        
+    label = 1
+    for i in range(1, ret + 1):        
         sample = masks == i
-        if len(np.unique(watershed[sample == 1])) == 3:
-            out += masks == i
+        unique = np.unique(watershed[sample == 1])
+        if len(unique) <= 3:
+            out[masks == i] = label
+            label += 1
         else:
-            out[sample == 1] += watershed[sample == 1] > 1
+            for idx in unique:
+                if idx <= 1:
+                    continue
+                else:
+                    out[watershed == idx] = label
+                    label += 1
 
-    return out
+    return out.astype(np.int0)
+
+
+def do_dilate(aux):
+    
+    out = np.zeros(aux.shape)
+    
+    for i in range(1, np.max(aux) + 1):
+        dilate = aux == i
+        dilate = dilate.astype(np.int16)
+        dilate = cv2.dilate(dilate, (15, 15), iterations=1)
+        out[dilate == 1] = i
+        
+    return out.astype(np.int0)
+
 
 def post_processing(x):
     
-    true = (x > 0.65).astype(np.float32)
+    true = (x > 0.5).astype(np.float32)
 
-    return true
+    return true.astype(np.int0)
 
 
 def rle_encoding(x):
@@ -321,8 +341,12 @@ def rle_encoding(x):
         prev = b
     return run_lengths
 
-def prob_to_rles(x, cutoff=0.5):
-    lab_img = label(x > cutoff)
+def prob_to_rles(x, cutoff=0.5, do_labelling=False):
+    if do_labelling:
+        lab_img = label(x > cutoff)
+    else:
+        lab_img = x
+        
     for i in range(1, lab_img.max() + 1):
         yield rle_encoding(lab_img == i)
     
