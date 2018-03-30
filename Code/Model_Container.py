@@ -76,19 +76,7 @@ class Model_Container(object):
         print('Best validation model: ' + str(best_idx + 1) + ' with score: ' + str(valid_loss[best_idx]))
 
 
-    def predict_valid(self, model_name):
-        
-        model = load_model('../Models/' + model_name,
-                           custom_objects={'binary_crossentropy_valid' : binary_crossentropy_valid})
-        gen_valid = self.dataset.generator('valid')
-        valid_size = self.dataset.x_valid.shape[0]
-        valid_steps = math.ceil(valid_size / 32)    
-        predict = model.predict_generator(gen_valid, valid_steps)
-        
-        return predict
-
-
-    def predict_test(self, model_name):
+    def predict_with_model(self, model_name):
         
         model = load_model('../Models/' + model_name,
                            custom_objects={'binary_crossentropy_valid' : binary_crossentropy_valid})
@@ -104,7 +92,8 @@ class Model_Container(object):
             
         return out
         
-    def predict_with_mask(self, mask_model_name, marker_model_name):
+    
+    def predict_with_watershed(self, mask_model_name, marker_model_name):
         
         mask_model = load_model('../Models/' + mask_model_name,
                            custom_objects={'binary_crossentropy_valid' : binary_crossentropy_valid})
@@ -126,6 +115,7 @@ class Model_Container(object):
             out.append(do_dilate(aux))
             
         return out
+
 
     def generate_submission(self, predict, do_labelling=False):
         
