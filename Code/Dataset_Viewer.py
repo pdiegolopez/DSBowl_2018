@@ -20,6 +20,8 @@ class Dataset_Viewer(object):
         
     def visualize_one_random_batch_train(self):
         
+        self.dataset.load_train()
+        
         generator = self.dataset.generator('train')
         
         x_batch, y_batch = next(generator)
@@ -43,7 +45,7 @@ class Dataset_Viewer(object):
             
             
     def visualize_testset(self):
-        
+               
         for i in range(self.dataset.test.shape[0]):
             plt.imshow(self.dataset.test[i,])
             plt.waitforbuttonpress()

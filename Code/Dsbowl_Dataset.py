@@ -19,23 +19,25 @@ class Dsbowl_Dataset(object):
     def __init__(self, dir_database, gauss=True):
         
         self.dir_database = dir_database
-        
-        self.preload = os.path.exists(self.dir_database + '/x_train.npy')
-        
+                
         # Pool
         self.pool = Pool()
     
+   
+    def load_train(self):
+        
+        self.preload = os.path.exists(self.dir_database + '/x_train.npy')
+        
         if self.preload:
             print('Loading pre-saved data')
             self.x_train = np.load(self.dir_database + '/x_train.npy')
             self.y_train = np.load(self.dir_database + '/y_train.npy')
             self.x_valid = np.load(self.dir_database + '/x_valid.npy')
             self.y_valid = np.load(self.dir_database + '/y_valid.npy')
-            self.test = np.load(self.dir_database + '/test.npy')
+            
             self.ids_train = list(np.load(self.dir_database + '/ids_train.npy'))
             self.ids_valid = list(np.load(self.dir_database + '/ids_valid.npy'))
-            self.ids_test = list(np.load(self.dir_database + '/ids_test.npy'))
-            self.test_shape = np.load(self.dir_database + '/test_shape.npy')
+
         else:
             print('Doing preprocessing load')
             # Training set
@@ -57,18 +59,7 @@ class Dsbowl_Dataset(object):
             self.y = np.array(self.y)
             self.valids = np.array(self.valids)
             self.y = np.stack((self.y, self.valids), axis=3)
-            
-            # Test set
-            ids = os.listdir(self.dir_database + '/test')  
-            self.ids_test = ids
-            ids = [self.dir_database + '/test/' + idx for idx in ids] 
-            
-            # Images
-            self.test = self.pool.map(load_images, ids)
-            self.test_shape = self.pool.map(get_test_shape, ids)
-            self.test_shape = np.array(self.test_shape)
-            self.test = np.array(self.test)
-            
+      
             # Entrenamiento
             self.x_train = []
             self.y_train = []
@@ -79,11 +70,37 @@ class Dsbowl_Dataset(object):
             
             # Dividir en conjuntos de entrenamiento y validacion
             self.split_train_val()    
-    
-            # Guardar para carga mas rápida
-            self.save_data()
-            
+            self.save_data_train()
        
+        
+    def load_test(self, dir_test=None):
+        
+        if dir_test is not None:
+            dir_database = dir_test + '/'
+        else:
+            dir_database = self.dir_database + '/test/'
+        
+        self.preload = os.path.exists(dir_database + '/test.npy')
+        
+        if self.preload:
+            print('Loading pre-saved data')
+            self.test = np.load(dir_database + '/test.npy')
+            self.ids_test = list(np.load(dir_database + '/ids_test.npy'))
+            self.test_shape = np.load(dir_database + '/test_shape.npy')
+        else:           
+            # Test set
+            ids = os.listdir(dir_database)  
+            self.ids_test = ids
+            ids = [dir_database + idx for idx in ids] 
+            
+            # Images
+            self.test = self.pool.map(load_images, ids)
+            self.test_shape = self.pool.map(get_test_shape, ids)
+            self.test_shape = np.array(self.test_shape)
+            self.test = np.array(self.test)       
+            self.save_data_test()
+        
+        
     def load_labels(self, gauss=True):
         ids = os.listdir(self.dir_database + '/train')
         ids = [self.dir_database + '/train/' + idx for idx in ids]
@@ -140,17 +157,20 @@ class Dsbowl_Dataset(object):
         self.ids_train = list(self.ids_train)
                
         
-    def save_data(self):
+    def save_data_train(self):
         np.save(self.dir_database + '/x_train.npy', self.x_train)
         np.save(self.dir_database + '/y_train.npy', self.y_train)
         np.save(self.dir_database + '/x_valid.npy', self.x_valid)
         np.save(self.dir_database + '/y_valid.npy', self.y_valid)
-        np.save(self.dir_database + '/test.npy', self.test)
         np.save(self.dir_database + '/ids_train.npy', np.array(self.ids_train))
         np.save(self.dir_database + '/ids_valid.npy', np.array(self.ids_valid))
+
+                
+    def save_data_test(self):
+        np.save(self.dir_database + '/test.npy', self.test)        
         np.save(self.dir_database + '/ids_test.npy', np.array(self.ids_test))
         np.save(self.dir_database + '/test_shape.npy', self.test_shape)
-        
+
         
     """
     Generador de muestras para entrenar

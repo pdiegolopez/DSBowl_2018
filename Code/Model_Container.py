@@ -31,6 +31,8 @@ class Model_Container(object):
         
     def do_training(self, model, epochs, batch_size=32):
         
+        self.dataset.load_train()
+        
         if model == 0:
             self.rcn5_model()
         
@@ -77,7 +79,7 @@ class Model_Container(object):
 
 
     def predict_with_model(self, model_name):
-        
+               
         model = load_model('../Models/' + model_name,
                            custom_objects={'binary_crossentropy_valid' : binary_crossentropy_valid})
         test = self.dataset.test.copy()
@@ -94,7 +96,7 @@ class Model_Container(object):
         
     
     def predict_with_watershed(self, mask_model_name, marker_model_name):
-        
+                
         mask_model = load_model('../Models/' + mask_model_name,
                            custom_objects={'binary_crossentropy_valid' : binary_crossentropy_valid})
         predict = mask_model.predict(self.dataset.test)
