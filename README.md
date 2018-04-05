@@ -8,13 +8,20 @@ Para generar resultados o ver resultados de los modelos preentrenados usar el fi
 
 Parametros main.py:
 
-**'--dir_database.', '-db.'** Ruta a la carpeta que contiene la base de datos donde dentro las imágenes se dividen en /train y /test (dentro de estas carpetas las carpetas con las identidades). 
-**''--visualize.', '-v.', dest='visualize.'** Booleano para visualizar o no las predicciones.
++ **'--dir_database.', '-db.'** Ruta a la carpeta que contiene la base de datos donde dentro las imágenes se dividen en /train y /test (dentro de estas carpetas las carpetas con las identidades).
+ 
++ **''--visualize.', '-v.', dest='visualize.'** Booleano para visualizar o no las predicciones.
 
 Algunas imágenes de predicciones:
 
-![](Images/out1.png)
+![](Images/1.png)
 
-![](Images/out2.png)
+![](Images/2.png)
 
-![](Images/out3.png)
+![](Images/3.png)
+
+![](Images/4.png)
+
+![](Images/5.png)
+
+![](Images/6.png)

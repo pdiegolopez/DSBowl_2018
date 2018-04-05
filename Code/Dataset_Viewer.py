@@ -6,6 +6,7 @@ Created on Sun Mar 25 18:12:34 2018
 @author: Pedro Diego López Maroto
 """
 
+import cv2
 import numpy as np
 from Dsbowl_Dataset import Dsbowl_Dataset
 from utils import square_to_original
@@ -71,4 +72,20 @@ class Dataset_Viewer(object):
             plt.imshow(predict2[i])
             plt.waitforbuttonpress()
             
+    
+    def visualize_segmentation(self, predict):
+        
+        for i in range(len(predict)):
+            test = square_to_original(self.dataset.test[i,], self.dataset.test_shape[i,])
+            pred = predict[i]
+            out = cv2.cvtColor(np.uint8(255 * test), cv2.COLOR_RGB2BGR)
+            for e in range(1, np.max(pred)):
+                
+                cn = (pred == e).astype(np.uint8)
+                cnt = cv2.findContours(cn, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)[1][0]              
+                out = cv2.drawContours(out, [cnt], -1, (0,255,0))
+                
+            out = np.uint8(out)
+            cv2.imshow('I', out)
+            cv2.waitKey()
             
