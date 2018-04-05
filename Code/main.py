@@ -14,8 +14,8 @@ if __name__ == '__main__':
     
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('--dir_database', '-db', dest='dir_database', required=True,
-                        help='Path to database folder')
+    parser.add_argument('--dir_test_set', '-db', dest='dir_database', required=True,
+                        help='Path to test folder')
  
     parser.add_argument('--visualize', '-v', dest='visualize', required=False, default='False',
                         help='Path to database folder')    
@@ -25,6 +25,7 @@ if __name__ == '__main__':
     visualize = eval(args.visualize)
     
     md = Model_Container(args.dir_database)
+    md.dataset.load_test(args.dir_database)
     
     print('Generating solution')
     
@@ -32,6 +33,7 @@ if __name__ == '__main__':
     
     if visualize:
         v = Dataset_Viewer(args.dir_database)
+        v.dataset = md.dataset
         v.visualize_predictions(predict)
     
     md.generate_submission(predict)
